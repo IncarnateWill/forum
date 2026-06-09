@@ -35,7 +35,7 @@ var STAT_ICONS = {
 // src/data/equipment.ts
 var BUILTIN_SETS = [];
 
-export async function initLogic() {
+async function initLogic() {
   BUILTIN_SETS = await fetchDynamicSets();
 }
 
