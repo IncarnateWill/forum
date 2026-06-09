@@ -42,24 +42,44 @@ export async function fetchDynamicSets() {
     const { items, lang } = await loadCoreData('en');
     
     const equipments = Array.isArray(items.equipments) ? items.equipments : items.equipments?.equipment || [];
-    const sets = Array.isArray(items.equipment_sets) ? items.equipment_sets : items.equipment_sets?.equipmentSet || [];
+    const gems = Array.isArray(items.gems) ? items.gems : items.gems?.gem || [];
+    const setBonusesRaw = Array.isArray(items.equipment_sets) ? items.equipment_sets : items.equipment_sets?.equipmentSet || [];
     const effectsList = Array.isArray(items.effects) ? items.effects : items.effects?.effect || [];
     
     // Build effect ID to effect object map
     const effectById = {};
     effectsList.forEach(e => effectById[e.effectID] = e);
     
-    // Group equipment by set
-    const equipBySet = {};
+    // Grouping helper
+    const normalizeSetId = (id) => String(id || "").trim();
+    const byId = {};
+    function ensure(id) {
+        if (!byId[id]) {
+            byId[id] = { id, equipments: [], gems: [], bonuses: [] };
+        }
+        return byId[id];
+    }
+    
     equipments.forEach(eq => {
-        if (!eq.setID) return;
-        if (!equipBySet[eq.setID]) equipBySet[eq.setID] = [];
-        equipBySet[eq.setID].push(eq);
+        const setId = normalizeSetId(eq.setID);
+        if (setId) ensure(setId).equipments.push(eq);
     });
     
-    const parseEffectsString = (effectStr) => {
+    gems.forEach(gem => {
+        const setId = normalizeSetId(gem.setID);
+        if (setId) ensure(setId).gems.push(gem);
+    });
+    
+    setBonusesRaw.forEach(bonus => {
+        const setId = normalizeSetId(bonus.setID);
+        if (setId) ensure(setId).bonuses.push(bonus);
+    });
+    
+    const parseEffectsString = (effectStr, checkRiftRaid = false) => {
         const stats = {};
-        if (!effectStr) return stats;
+        let isRiftRaid = false;
+        
+        if (!effectStr) return { stats, isRiftRaid };
         const tokens = String(effectStr).split(',').map(t => t.trim()).filter(Boolean);
         for (const token of tokens) {
             const parts = token.split(':');
@@ -70,31 +90,52 @@ export async function fetchDynamicSets() {
             const effectDef = effectById[effId];
             if (!effectDef) continue;
             
+            const lowerName = effectDef.name.toLowerCase();
+            if (lowerName.includes("rift raid event")) {
+                isRiftRaid = true;
+            }
+            
             const mapped = mapEffectToStat(effectDef.name, valStr);
             if (mapped) {
                 stats[mapped.key] = (stats[mapped.key] || 0) + mapped.value;
             }
         }
-        return stats;
+        return { stats, isRiftRaid };
     };
     
     const resultSets = [];
     
-    // Target sets by their EN lang keys
-    const targetKeywords = ['dragon hunter', 'dragon slayer', 'dragon vanquisher', 'zombie', 'radiant', 'fungal swarm'];
-    
-    for (const setDef of sets) {
-        const setId = String(setDef.setID);
+    for (const [setId, group] of Object.entries(byId)) {
+        let hasRiftRaidStat = false;
+        
+        // Check if this set is a Rift Raid set
+        group.bonuses.forEach(b => {
+            if (b.effects) {
+                const parsed = parseEffectsString(b.effects);
+                if (parsed.isRiftRaid) hasRiftRaidStat = true;
+            }
+        });
+        
+        group.equipments.forEach(eq => {
+            if (eq.effects) {
+                const parsed = parseEffectsString(eq.effects);
+                if (parsed.isRiftRaid) hasRiftRaidStat = true;
+            }
+        });
+        
+        if (!hasRiftRaidStat) continue;
         
         // Find name from lang
         const langKey = `equipment_set_${setId}`.toLowerCase();
-        const setName = lang[langKey] || lang[`equipment_set_${setId}`];
-        if (!setName) continue;
+        let setName = lang[langKey] || lang[`equipment_set_${setId}`];
+        if (!setName) {
+            // Fallback to equipment names or bonuses
+            const fallbackEq = group.equipments.find(e => e.comment1);
+            if (fallbackEq) setName = fallbackEq.comment1.replace(/\b(armor|weapon|helmet|artifact|hero)\b/ig, "").trim();
+            else setName = `Set ${setId}`;
+        }
         
         const lowerName = setName.toLowerCase();
-        const isTarget = targetKeywords.some(kw => lowerName.includes(kw));
-        
-        if (!isTarget) continue;
         
         // Determine tier
         let tier = 'bronze';
@@ -104,7 +145,7 @@ export async function fetchDynamicSets() {
         const cat = lowerName.includes('dragon') ? 'D' : lowerName.includes('zombie') || lowerName.includes('radiant') ? 'Z' : 'M';
         
         // Build items
-        const setItems = (equipBySet[setId] || []).map(eq => {
+        const setItems = group.equipments.map(eq => {
             const eqLangKey = `equipment_unique_${eq.equipmentID}`.toLowerCase();
             const eqName = lang[eqLangKey] || lang[`equipment_unique_${eq.equipmentID}`] || eq.comment2 || eq.comment1 || eq.name || `Item ${eq.equipmentID}`;
             
@@ -115,6 +156,8 @@ export async function fetchDynamicSets() {
             if (eq.slotID == 4) slot = "artifact";
             if (eq.slotID == 6) slot = "hero";
             
+            const parsed = parseEffectsString(eq.effects);
+            
             return {
                 id: `eq_${eq.equipmentID}`,
                 name: eqName,
@@ -122,44 +165,32 @@ export async function fetchDynamicSets() {
                 setName: setName,
                 tier: tier,
                 slot: slot,
-                stats: parseEffectsString(eq.effects)
+                stats: parsed.stats
             };
         });
         
         // Build set bonuses
         const setBonuses = [];
-        if (setDef.bonuses) {
-            const bArray = Array.isArray(setDef.bonuses) ? setDef.bonuses : setDef.bonuses.bonus || [];
-            bArray.forEach(b => {
-                if (!b.effects) return;
-                const req = parseInt(b.pieces, 10);
-                if (isNaN(req)) return;
-                const st = parseEffectsString(b.effects);
-                if (Object.keys(st).length > 0) {
-                    setBonuses.push({ pieces: req, stats: st });
-                }
-            });
-        }
+        group.bonuses.forEach(b => {
+            if (!b.effects) return;
+            const req = parseInt(b.neededItems || b.pieces, 10);
+            if (isNaN(req)) return;
+            const parsed = parseEffectsString(b.effects);
+            if (Object.keys(parsed.stats).length > 0) {
+                setBonuses.push({ pieces: req, stats: parsed.stats });
+            }
+        });
         
         if (setItems.length === 0) continue;
-
-        const newSet = {
+        
+        resultSets.push({
             id: `set_${setId}`,
             name: setName,
             tier: tier,
             category: cat,
             items: setItems,
             setBonuses: setBonuses
-        };
-
-        const existingIdx = resultSets.findIndex(s => s.name === setName);
-        if (existingIdx !== -1) {
-            if (setItems.length > resultSets[existingIdx].items.length) {
-                resultSets[existingIdx] = newSet;
-            }
-        } else {
-            resultSets.push(newSet);
-        }
+        });
     }
     
     // Sort bronze -> silver -> gold
@@ -171,3 +202,4 @@ export async function fetchDynamicSets() {
     
     return resultSets;
 }
+
