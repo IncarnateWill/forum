@@ -105,8 +105,8 @@ export async function fetchDynamicSets() {
         
         // Build items
         const setItems = (equipBySet[setId] || []).map(eq => {
-            const eqLangKey = `equipment_name_${eq.equipmentID}`.toLowerCase();
-            const eqName = lang[eqLangKey] || lang[`equipment_name_${eq.equipmentID}`] || `Item ${eq.equipmentID}`;
+            const eqLangKey = `equipment_unique_${eq.equipmentID}`.toLowerCase();
+            const eqName = lang[eqLangKey] || lang[`equipment_unique_${eq.equipmentID}`] || eq.comment2 || eq.comment1 || eq.name || `Item ${eq.equipmentID}`;
             
             let slot = "hero";
             if (eq.slotID == 1) slot = "helmet";
@@ -141,14 +141,25 @@ export async function fetchDynamicSets() {
             });
         }
         
-        resultSets.push({
+        if (setItems.length === 0) continue;
+
+        const newSet = {
             id: `set_${setId}`,
             name: setName,
             tier: tier,
             category: cat,
             items: setItems,
             setBonuses: setBonuses
-        });
+        };
+
+        const existingIdx = resultSets.findIndex(s => s.name === setName);
+        if (existingIdx !== -1) {
+            if (setItems.length > resultSets[existingIdx].items.length) {
+                resultSets[existingIdx] = newSet;
+            }
+        } else {
+            resultSets.push(newSet);
+        }
     }
     
     // Sort bronze -> silver -> gold
