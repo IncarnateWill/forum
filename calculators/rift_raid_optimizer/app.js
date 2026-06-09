@@ -4,13 +4,13 @@ import {
   toggleItem, setQuantity, selectAllInSet, clearAllInSet,
   getQuantity, isOwned,
   loadCustomSets, saveCustomSets,
-  STAT_LABELS, STAT_ICONS
+  STAT_LABELS, STAT_ICONS, initLogic
 } from './logic.js';
 
 // ─── State ─────────────────────────────────────────────────────
 let inv = loadInventory();
 let customSets = loadCustomSets();
-let allSets = [...BUILTIN_SETS, ...customSets];
+let allSets = [];
 let results = [];
 
 const ALL_STATS = [
@@ -401,7 +401,14 @@ btnOptimizeInv.addEventListener('click', () => runOptimizer(true));
 btnOptimizeAll.addEventListener('click', () => runOptimizer(false));
 
 // ─── Init ───────────────────────────────────────────────────────
-renderInventory();
-renderGoals();
-renderResults();
-renderSets();
+async function init() {
+  invContainer.innerHTML = '<div style="text-align:center;padding:2rem;">Loading equipment sets from game data...</div>';
+  await initLogic();
+  allSets = [...BUILTIN_SETS, ...customSets];
+  renderInventory();
+  renderGoals();
+  renderResults();
+  renderSets();
+}
+
+init();
