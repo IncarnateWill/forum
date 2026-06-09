@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rift Raid Optimizer</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-LN+7fdVzj6u52u30Kp6M/trliBMCMKTyK833zpbD+pXdCLuTusPj697FH4R/5mcr" crossorigin="anonymous">
+  <link rel="icon" type="image/webp" href="../../img_base/favicon.ico">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.10.5/font/bootstrap-icons.min.css"
+    rel="stylesheet">
+  <link rel="stylesheet" href="../shared/calculators-shared.css">
+  <link rel="stylesheet" href="../../overviews/shared/consent.css">
+  <link rel="stylesheet" href="style.css">
+  <meta property="og:title" content="Rift Raid Optimizer | Generals Forum">
+  <meta property="og:description" content="Optimize your equipment loadouts based on custom stat weights.">
+  <meta property="og:image" content="https://generalscamp.github.io/forum/img_base/main_page/equipment-icon.webp">
+</head>
+<body>
+  <div class="container">
+    <div class="row">
+      <div class="col-12">
+        <h1>RIFT RAID OPTIMIZER</h1>
+      </div>
+      <a href="https://generalscamp.github.io/forum/" class="home-icon-link">
+        <div class="home-icon">
+          <i class="bi bi-house"></i>
+        </div>
+      </a>
+
+      <!-- Tabs -->
+      <div class="col-12 mt-4">
+        <div class="tab-bar">
+          <button class="tab-item active" data-target="inventory">📦 My Inventory</button>
+          <button class="tab-item" data-target="optimize">⚡ Optimize</button>
+          <button class="tab-item" data-target="results">🏆 Results <span id="resultsCountBadge" class="d-none badge bg-primary rounded-pill">0</span></button>
+          <button class="tab-item" data-target="sets">📚 Sets & Data</button>
+        </div>
+      </div>
+
+      <!-- Inventory Tab -->
+      <div id="tab-inventory" class="col-12 tab-content active">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <div>
+            <h2 class="h5 text-white mb-1">My Inventory</h2>
+            <p class="text-secondary small mb-0">Track each item and how many copies you own. Use the - / + buttons to set exact quantities.</p>
+          </div>
+          <div class="glass-card py-2 px-3 text-white small" id="inventoryStats">
+            0 / 0 owned
+          </div>
+        </div>
+        <div id="inventoryContainer"></div>
+      </div>
+
+      <!-- Optimize Tab -->
+      <div id="tab-optimize" class="col-12 tab-content">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <div>
+            <h2 class="h5 text-white mb-1">Optimization Goals</h2>
+            <p class="text-secondary small mb-0">Select which stats to prioritize and set their importance (1 = low, 10 = critical).</p>
+          </div>
+        </div>
+        
+        <div class="glass-card">
+          <p class="text-secondary small fw-bold mb-2">QUICK PRESETS</p>
+          <div class="d-flex flex-wrap gap-2" id="presetsContainer">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+
+        <div class="glass-card">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <p class="text-secondary small fw-bold mb-0">STAT PRIORITIES</p>
+            <span class="badge" style="background: rgba(124,58,237,0.15); color: var(--color-accent-light);" id="activeGoalsCount">0 active</span>
+          </div>
+          <div class="goals-list" id="goalsContainer">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+
+        <div class="d-flex gap-2 flex-wrap">
+          <button class="btn-primary flex-1 py-2" id="btnOptimizeInv">⚡ Optimize from My Inventory</button>
+          <button class="btn-secondary flex-1 py-2" id="btnOptimizeAll">🏆 Theoretical Best Build</button>
+        </div>
+        <p class="text-center text-secondary small mt-3" id="optimizeHelpText">Enable at least one stat priority above to run the optimizer.</p>
+      </div>
+
+      <!-- Results Tab -->
+      <div id="tab-results" class="col-12 tab-content">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <div>
+            <h2 class="h5 text-white mb-1">Optimization Results</h2>
+            <p class="text-secondary small mb-0" id="resultsSubtitle">Run the optimizer to see the best loadouts.</p>
+          </div>
+        </div>
+        <div id="resultsContainer">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- Sets Tab -->
+      <div id="tab-sets" class="col-12 tab-content">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <div>
+            <h2 class="h5 text-white mb-1">Sets & Data</h2>
+            <p class="text-secondary small mb-0">View all built-in sets and manage custom sets.</p>
+          </div>
+        </div>
+        <div id="setsContainer">
+          <p class="text-secondary text-center py-5">This section lists the raw data. Custom set management to be implemented.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script type="module" src="logic.js"></script>
+  <script type="module" src="app.js"></script>
+  <script type="module" src="../../overviews/shared/ConsentInit.mjs"></script>
+</body>
+</html>
