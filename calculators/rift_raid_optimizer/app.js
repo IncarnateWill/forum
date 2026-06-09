@@ -1,16 +1,17 @@
-import { 
-  BUILTIN_SETS, optimize, loadInventory, saveInventory, 
-  toggleItem, setQuantity, selectAllInSet, clearAllInSet, 
-  getQuantity, isOwned, loadCustomSets, saveCustomSets,
+import {
+  BUILTIN_SETS, optimize,
+  loadInventory, saveInventory,
+  toggleItem, setQuantity, selectAllInSet, clearAllInSet,
+  getQuantity, isOwned,
+  loadCustomSets, saveCustomSets,
   STAT_LABELS, STAT_ICONS
 } from './logic.js';
 
-// --- State ---
+// ─── State ─────────────────────────────────────────────────────
 let inv = loadInventory();
 let customSets = loadCustomSets();
 let allSets = [...BUILTIN_SETS, ...customSets];
 let results = [];
-let isInventoryMode = true;
 
 const ALL_STATS = [
   'frontCombatStrength', 'flankCombatStrength', 'flankUnitLimit', 'frontUnitLimit',
@@ -21,31 +22,33 @@ const ALL_STATS = [
 let goals = ALL_STATS.map(stat => ({ stat, weight: 5, enabled: false }));
 
 const PRESETS = [
-  { name: 'Max Flank Limit', emoji: '🛡️', goals: { flankUnitLimit: 10, flankCombatStrength: 7, meleeAttack: 4 } },
-  { name: 'Max Front Combat', emoji: '⚔️', goals: { frontCombatStrength: 10, frontUnitLimit: 7, rangedAttack: 5 } },
-  { name: 'Gate Breaker', emoji: '🚪', goals: { gateReduction: 10, castleWallReduction: 8, courtyardCombat: 5 } },
-  { name: 'Wave Pusher', emoji: '🌊', goals: { additionalWaves: 10, frontUnitLimit: 6, flankUnitLimit: 6 } },
-  { name: 'Full Combat', emoji: '💥', goals: { frontCombatStrength: 8, flankCombatStrength: 8, meleeAttack: 7, rangedAttack: 7, courtyardCombat: 5 } },
+  { name: 'Max Flank Limit',   emoji: '🛡️', goals: { flankUnitLimit: 10, flankCombatStrength: 7, meleeAttack: 4 } },
+  { name: 'Max Front Combat',  emoji: '⚔️', goals: { frontCombatStrength: 10, frontUnitLimit: 7, rangedAttack: 5 } },
+  { name: 'Gate Breaker',      emoji: '🚪', goals: { gateReduction: 10, castleWallReduction: 8, courtyardCombat: 5 } },
+  { name: 'Wave Pusher',       emoji: '🌊', goals: { additionalWaves: 10, frontUnitLimit: 6, flankUnitLimit: 6 } },
+  { name: 'Full Combat',       emoji: '💥', goals: { frontCombatStrength: 8, flankCombatStrength: 8, meleeAttack: 7, rangedAttack: 7, courtyardCombat: 5 } },
 ];
 
 const SLOT_ICONS = { armor: '🛡', weapon: '⚔️', helmet: '⛑️', artifact: '📖', hero: '👑', gem: '💎' };
+const SLOT_LABELS = { armor: 'Armor', weapon: 'Weapon', helmet: 'Helmet', artifact: 'Artifact', hero: 'Hero', gem: 'Gem' };
 
-// --- DOM Elements ---
-const tabs = document.querySelectorAll('.tab-item');
-const contents = document.querySelectorAll('.tab-content');
-const invContainer = document.getElementById('inventoryContainer');
-const invStats = document.getElementById('inventoryStats');
+// ─── DOM refs ───────────────────────────────────────────────────
+const tabs        = document.querySelectorAll('.opt-tab-btn');
+const contents    = document.querySelectorAll('.opt-tab-content');
+const invContainer   = document.getElementById('inventoryContainer');
+const invStats       = document.getElementById('inventoryStats');
 const goalsContainer = document.getElementById('goalsContainer');
 const presetsContainer = document.getElementById('presetsContainer');
 const activeGoalsCount = document.getElementById('activeGoalsCount');
-const btnOptimizeInv = document.getElementById('btnOptimizeInv');
-const btnOptimizeAll = document.getElementById('btnOptimizeAll');
-const optHelpText = document.getElementById('optimizeHelpText');
+const btnOptimizeInv   = document.getElementById('btnOptimizeInv');
+const btnOptimizeAll   = document.getElementById('btnOptimizeAll');
+const optHelpText      = document.getElementById('optimizeHelpText');
 const resultsContainer = document.getElementById('resultsContainer');
-const resultsSubtitle = document.getElementById('resultsSubtitle');
+const resultsSubtitle  = document.getElementById('resultsSubtitle');
 const resultsCountBadge = document.getElementById('resultsCountBadge');
+const setsContainer    = document.getElementById('setsContainer');
 
-// --- Tab Logic ---
+// ─── Tab Navigation ─────────────────────────────────────────────
 tabs.forEach(tab => {
   tab.addEventListener('click', () => {
     tabs.forEach(t => t.classList.remove('active'));
@@ -60,7 +63,7 @@ function switchTab(target) {
   if (tab) tab.click();
 }
 
-// --- Render Inventory ---
+// ─── Render Inventory ───────────────────────────────────────────
 function renderInventory() {
   const ownedCount = Object.values(inv).filter(q => q > 0).length;
   const totalItems = allSets.reduce((a, s) => a + s.items.length, 0);
@@ -69,243 +72,336 @@ function renderInventory() {
   invContainer.innerHTML = '';
   allSets.forEach(set => {
     const setOwnedCount = set.items.filter(i => isOwned(inv, i.id)).length;
-    const tierClass = `tier-${set.tier}`;
-    
-    let html = `
-      <div class="glass-card ${tierClass}">
-        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-          <div class="d-flex align-items-center gap-3">
-            <span style="width:10px;height:10px;border-radius:50%;background:var(--tier-color);box-shadow:0 0 8px var(--tier-glow);"></span>
-            <div>
-              <div class="d-flex align-items-center gap-2 flex-wrap">
-                <h3 class="h6 fw-bold text-white mb-0">${set.name}</h3>
-                <span class="badge" style="background:var(--tier-glow);color:var(--tier-light);border:1px solid var(--tier-color)">${set.tier}</span>
-              </div>
-              <p class="text-secondary small mb-0 mt-1">${setOwnedCount}/${set.items.length} items owned</p>
-            </div>
-          </div>
-          <div class="d-flex gap-2">
-            <button class="btn-secondary text-xs px-3 py-1" onclick="window.app.selectAll('${set.id}')">✓ All</button>
-            <button class="btn-secondary text-xs px-3 py-1" onclick="window.app.clearAll('${set.id}')">✕ None</button>
-          </div>
-        </div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-    `;
+    const tierCls = set.tier;
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'collapse-area mb-2';
+
+    // Header
+    const header = document.createElement('h2');
+    header.className = 'collapse-header';
+    header.style.fontSize = '15px';
+    header.innerHTML = `
+      <span class="d-flex align-items-center gap-2 header-title">
+        <span class="opt-tier-dot ${tierCls}"></span>
+        ${set.name}
+        <span class="opt-tier-badge ${tierCls}">${set.tier}</span>
+        <span style="color:rgba(242,217,187,0.65);font-size:12px;font-weight:normal">${setOwnedCount}/${set.items.length}</span>
+      </span>
+      <span class="opt-set-actions">
+        <button class="opt-set-btn" data-action="selectAll" data-setid="${set.id}">✓ All</button>
+        <button class="opt-set-btn" data-action="clearAll"  data-setid="${set.id}">✕ None</button>
+      </span>`;
+
+    // Body
+    const body = document.createElement('div');
+    body.className = 'collapse show opt-section-body';
+    body.style.cssText = 'background-color:rgb(180,127,92);border-radius:0 0 10px 10px;padding:10px;margin-bottom:0';
+
+    // Item grid
+    const grid = document.createElement('div');
+    grid.className = 'opt-item-grid';
 
     set.items.forEach(item => {
       const qty = getQuantity(inv, item.id);
       const owned = qty > 0;
-      
-      const statsHtml = Object.entries(item.stats).map(([k, v]) => `
-        <span class="stat-pill">${STAT_ICONS[k]} +${v}${k==='additionalWaves'?' wave':k==='wallRegenCooldown'?'s':'%'}</span>
-      `).join('');
 
-      html += `
-        <div class="item-card ${tierClass} ${owned ? 'owned' : ''}" onclick="window.app.toggle('${item.id}')">
-          <div class="d-flex align-items-center gap-2 mb-2">
-            <span class="fs-5">${SLOT_ICONS[item.slot] || '•'}</span>
-            <span class="text-white small fw-bold flex-1 truncate">${item.name}</span>
-            <div class="qty-stepper" onclick="event.stopPropagation()">
-              <button onclick="window.app.setQty('${item.id}', ${qty - 1})" ${qty <= 0 ? 'disabled' : ''}>-</button>
-              <input type="number" min="0" max="99" value="${qty}" onchange="window.app.setQty('${item.id}', parseInt(this.value)||0)">
-              <button onclick="window.app.setQty('${item.id}', ${qty + 1})">+</button>
-            </div>
+      const card = document.createElement('div');
+      card.className = `opt-item-card${owned ? ' owned' : ''}`;
+      card.dataset.itemId = item.id;
+
+      const statHtml = Object.entries(item.stats).map(([k, v]) =>
+        `<span class="opt-stat-pill">${STAT_ICONS[k] || ''} +${v}${k === 'additionalWaves' ? ' wave' : k === 'wallRegenCooldown' ? 's' : '%'}</span>`
+      ).join('');
+
+      card.innerHTML = `
+        <div class="opt-item-card-top">
+          <span class="opt-item-icon">${SLOT_ICONS[item.slot] || '•'}</span>
+          <span class="opt-item-name">${item.name}</span>
+          <div class="opt-qty-stepper" data-item-id="${item.id}" onclick="event.stopPropagation()">
+            <button data-delta="-1" data-id="${item.id}" ${qty <= 0 ? 'disabled' : ''}>−</button>
+            <input type="number" min="0" max="99" value="${qty}" data-id="${item.id}">
+            <button data-delta="1" data-id="${item.id}">+</button>
           </div>
-          <div class="d-flex flex-wrap gap-1">${statsHtml}</div>
-          ${owned ? `<div style="position:absolute;top:8px;right:8px;font-size:10px;font-weight:bold;background:var(--tier-glow);color:var(--tier-light);padding:2px 4px;border-radius:4px;border:1px solid var(--tier-color)">x${qty}</div>` : ''}
         </div>
+        <div class="opt-stat-pills">${statHtml}</div>
+        ${owned ? `<div class="opt-qty-badge">×${qty}</div>` : ''}
       `;
+
+      // Toggle on card click (not on stepper)
+      card.addEventListener('click', () => appActions.toggle(item.id));
+
+      grid.appendChild(card);
     });
 
-    html += `</div>`;
-    
-    // Set Bonuses
+    body.appendChild(grid);
+
+    // Set bonuses
     if (set.setBonuses.length > 0) {
-      html += `<div class="mt-4 pt-3 border-top border-secondary">
-        <p class="small fw-bold text-secondary mb-2">SET BONUSES</p>
-        <div class="d-flex flex-wrap gap-2">`;
+      const bonusDiv = document.createElement('div');
+      bonusDiv.className = 'opt-bonus-pills';
       set.setBonuses.forEach(bonus => {
         const active = setOwnedCount >= bonus.pieces;
-        const statsStr = Object.entries(bonus.stats).map(([k,v]) => `+${v}${k==='additionalWaves'?' waves':'%'} ${STAT_LABELS[k]}`).join(', ');
-        html += `<div class="px-3 py-1 rounded small" style="background:${active?'var(--tier-glow)':'rgba(14,22,42,0.5)'};border:1px solid ${active?'var(--tier-color)':'#333'};color:${active?'var(--tier-light)':'#6c757d'}">
-          <span class="fw-bold">${bonus.pieces}pc:</span> ${statsStr}
-        </div>`;
+        const statsStr = Object.entries(bonus.stats).map(([k, v]) =>
+          `+${v}${k === 'additionalWaves' ? ' waves' : '%'} ${STAT_LABELS[k]}`
+        ).join(', ');
+        const pill = document.createElement('span');
+        pill.className = `opt-bonus-pill${active ? ' active' : ''}`;
+        pill.textContent = `${bonus.pieces}pc: ${statsStr}`;
+        bonusDiv.appendChild(pill);
       });
-      html += `</div></div>`;
+      body.appendChild(bonusDiv);
     }
 
-    html += `</div>`;
-    invContainer.insertAdjacentHTML('beforeend', html);
+    wrapper.appendChild(header);
+    wrapper.appendChild(body);
+    invContainer.appendChild(wrapper);
+  });
+
+  // Qty stepper events (delegated)
+  invContainer.querySelectorAll('.opt-qty-stepper button').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const id = btn.dataset.id;
+      const delta = parseInt(btn.dataset.delta, 10);
+      const current = getQuantity(inv, id);
+      appActions.setQty(id, current + delta);
+    });
+  });
+
+  invContainer.querySelectorAll('.opt-qty-stepper input').forEach(input => {
+    input.addEventListener('change', e => {
+      e.stopPropagation();
+      const id = input.dataset.id;
+      appActions.setQty(id, parseInt(input.value, 10) || 0);
+    });
+    input.addEventListener('click', e => e.stopPropagation());
+  });
+
+  // Select/Clear all buttons
+  invContainer.querySelectorAll('.opt-set-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const { action, setid } = btn.dataset;
+      if (action === 'selectAll') appActions.selectAll(setid);
+      else appActions.clearAll(setid);
+    });
   });
 }
 
-// --- Render Goals ---
+// ─── Render Goals ───────────────────────────────────────────────
 function renderGoals() {
   // Presets
-  presetsContainer.innerHTML = PRESETS.map((p, i) => `
-    <button class="btn-secondary small" onclick="window.app.applyPreset(${i})">${p.emoji} ${p.name}</button>
-  `).join('');
+  presetsContainer.innerHTML = '';
+  PRESETS.forEach((p, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'opt-preset-btn';
+    btn.textContent = `${p.emoji} ${p.name}`;
+    btn.addEventListener('click', () => appActions.applyPreset(i));
+    presetsContainer.appendChild(btn);
+  });
 
-  // Goals List
+  // Goals
   const enabledCount = goals.filter(g => g.enabled).length;
   activeGoalsCount.textContent = `${enabledCount} active`;
-  
-  goalsContainer.innerHTML = goals.map(g => `
-    <div class="goal-item ${g.enabled ? 'enabled' : ''}">
-      <button class="btn text-white p-0 d-flex align-items-center justify-content-center flex-shrink-0" 
-              style="width:32px;height:32px;border-radius:8px;background:${g.enabled?'rgba(124,58,237,0.3)':'rgba(14,22,42,0.6)'};border:1px solid ${g.enabled?'rgba(124,58,237,0.5)':'#333'}"
-              onclick="window.app.toggleGoal('${g.stat}')">
-        ${STAT_ICONS[g.stat]}
-      </button>
-      <div class="flex-1 min-w-0">
-        <div class="d-flex justify-content-between align-items-center mb-1">
-          <span class="small fw-bold truncate" style="color:${g.enabled?'#e8eaf6':'#6c757d'}">${STAT_LABELS[g.stat]}</span>
-          ${g.enabled ? `<span class="badge" style="background:rgba(124,58,237,0.2);color:var(--color-accent-light)">${g.weight}/10</span>` : ''}
-        </div>
-        ${g.enabled ? `<input type="range" class="form-range" min="1" max="10" value="${g.weight}" onchange="window.app.setGoalWeight('${g.stat}', this.value)">` : ''}
-      </div>
-    </div>
-  `).join('');
 
-  const btnDisabled = enabledCount === 0;
-  btnOptimizeInv.disabled = btnDisabled;
-  btnOptimizeAll.disabled = btnDisabled;
-  optHelpText.style.display = btnDisabled ? 'block' : 'none';
+  goalsContainer.innerHTML = '';
+  goals.forEach(g => {
+    const row = document.createElement('div');
+    row.className = `opt-goal-row${g.enabled ? ' enabled' : ''}`;
+    row.innerHTML = `
+      <div class="opt-goal-toggle">${STAT_ICONS[g.stat] || '•'}</div>
+      <div class="flex-fill">
+        <div class="opt-goal-label">${STAT_LABELS[g.stat]}</div>
+        ${g.enabled ? `<input type="range" class="opt-goal-range" min="1" max="10" value="${g.weight}" data-stat="${g.stat}">` : ''}
+      </div>
+      ${g.enabled ? `<span class="opt-goal-weight">${g.weight}/10</span>` : ''}
+    `;
+
+    // Toggle the whole row
+    row.addEventListener('click', e => {
+      if (e.target.tagName === 'INPUT') return;
+      appActions.toggleGoal(g.stat);
+    });
+
+    goalsContainer.appendChild(row);
+  });
+
+  // Slider events
+  goalsContainer.querySelectorAll('.opt-goal-range').forEach(slider => {
+    slider.addEventListener('input', e => {
+      appActions.setGoalWeight(slider.dataset.stat, parseInt(slider.value, 10));
+    });
+  });
+
+  const disabled = enabledCount === 0;
+  btnOptimizeInv.disabled = disabled;
+  btnOptimizeAll.disabled = disabled;
+  optHelpText.style.display = disabled ? 'block' : 'none';
 }
 
-// --- Render Results ---
+// ─── Render Results ─────────────────────────────────────────────
 function renderResults() {
   resultsCountBadge.textContent = results.length;
-  if (results.length > 0) {
-    resultsCountBadge.classList.remove('d-none');
-    resultsSubtitle.textContent = `Found ${results.length} build${results.length===1?'':'s'} for your priorities.`;
-  } else {
-    resultsCountBadge.classList.add('d-none');
-    resultsSubtitle.textContent = 'Run the optimizer to see the best loadouts.';
-  }
+  resultsCountBadge.style.display = results.length > 0 ? 'inline' : 'none';
+  resultsSubtitle.textContent = results.length > 0
+    ? `Found ${results.length} build${results.length === 1 ? '' : 's'} — sorted by optimization score.`
+    : 'Run the optimizer to see the best loadouts.';
 
   if (results.length === 0) {
-    resultsContainer.innerHTML = `<div class="text-center text-secondary py-5">No results found. Adjust priorities or inventory.</div>`;
+    resultsContainer.innerHTML = '<div class="opt-empty">No results found. Check your stat priorities or inventory.</div>';
     return;
   }
 
+  const slots = ['armor', 'weapon', 'helmet', 'artifact', 'hero'];
   resultsContainer.innerHTML = results.map((res, idx) => {
-    const slots = ['armor', 'weapon', 'helmet', 'artifact', 'hero'];
-    
-    let html = `<div class="result-card">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h3 class="h5 fw-bold text-white mb-0">Build #${idx + 1} <span class="badge bg-secondary ms-2 text-xs">Score: ${Math.round(res.score)}</span></h3>
-      </div>
-      <div class="row g-3 mb-4">`;
-      
-    // Render equipment slots
-    slots.forEach(s => {
+    // Equipment slots
+    const slotsHtml = slots.map(s => {
       const item = res.loadout[s];
-      if (item) {
-        html += `<div class="col-12 col-sm-6 col-md-4">
-          <div class="p-2 rounded" style="background:rgba(14,22,42,0.6);border:1px solid #333">
-            <div class="d-flex align-items-center gap-2 mb-1">
-              <span>${SLOT_ICONS[s]}</span>
-              <span class="small fw-bold text-white truncate">${item.name}</span>
-            </div>
-            <div class="text-xs text-secondary">${item.setName}</div>
-          </div>
-        </div>`;
-      }
-    });
-
-    // Render Gems
-    res.loadout.gems.forEach((gem, i) => {
-      if (gem) {
-        html += `<div class="col-12 col-sm-6 col-md-4">
-          <div class="p-2 rounded" style="background:rgba(14,22,42,0.6);border:1px solid #333">
-            <div class="d-flex align-items-center gap-2 mb-1">
-              <span>💎</span>
-              <span class="small fw-bold text-white truncate">${gem.name}</span>
-            </div>
-            <div class="text-xs text-secondary">${gem.setName}</div>
-          </div>
-        </div>`;
-      }
-    });
-
-    html += `</div>`;
-
-    // Render Set Bonuses Applied
-    if (res.setBonusesApplied.length > 0) {
-      html += `<p class="small fw-bold text-secondary mb-2">ACTIVE SET BONUSES</p>
-      <div class="d-flex flex-wrap gap-2 mb-4">`;
-      res.setBonusesApplied.forEach(b => {
-        html += `<div class="badge text-white px-2 py-1" style="background:rgba(124,58,237,0.3);border:1px solid rgba(124,58,237,0.5)">
-          ${b.pieces}pc ${b.setName}
-        </div>`;
-      });
-      html += `</div>`;
-    }
-
-    // Render Total Stats
-    html += `<p class="small fw-bold text-secondary mb-2">TOTAL STATS</p>
-    <div class="d-flex flex-wrap gap-2">`;
-    Object.entries(res.totalStats).sort((a,b) => b[1]-a[1]).forEach(([k, v]) => {
-      const isPriority = goals.find(g => g.stat === k && g.enabled);
-      html += `<div class="px-2 py-1 rounded small d-flex align-items-center gap-1" style="${isPriority?'background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.3);color:var(--color-accent-light)':'background:rgba(255,255,255,0.05);color:#ccc'}">
-        <span>${STAT_ICONS[k]}</span>
-        <span class="fw-bold">${v}${k==='additionalWaves'?'w':k==='wallRegenCooldown'?'s':'%'}</span>
-        <span class="text-xs ${isPriority?'':'opacity-75'}">${STAT_LABELS[k]}</span>
+      if (!item) return '';
+      return `<div class="opt-result-slot">
+        <div class="opt-result-slot-label">${SLOT_ICONS[s]} ${SLOT_LABELS[s]}</div>
+        <div class="opt-result-slot-name">${item.name}</div>
+        <div class="opt-result-slot-set">${item.setName}</div>
       </div>`;
-    });
-    html += `</div></div>`;
-    
-    return html;
+    }).join('');
+
+    // Gems
+    const gemsHtml = res.loadout.gems.filter(Boolean).map(gem =>
+      `<div class="opt-result-slot">
+        <div class="opt-result-slot-label">💎 Gem</div>
+        <div class="opt-result-slot-name">${gem.name}</div>
+        <div class="opt-result-slot-set">${gem.setName}</div>
+      </div>`
+    ).join('');
+
+    // Active set bonuses
+    const bonusHtml = res.setBonusesApplied.length > 0 ? `
+      <p class="opt-sub-header">ACTIVE SET BONUSES</p>
+      <div class="opt-active-bonuses">
+        ${res.setBonusesApplied.map(b => `<span class="opt-active-bonus">${b.pieces}pc ${b.setName}</span>`).join('')}
+      </div>` : '';
+
+    // Total stats
+    const priorityStats = new Set(goals.filter(g => g.enabled).map(g => g.stat));
+    const statsHtml = Object.entries(res.totalStats)
+      .sort((a, b) => b[1] - a[1])
+      .map(([k, v]) => {
+        const isPriority = priorityStats.has(k);
+        const unit = k === 'additionalWaves' ? 'w' : k === 'wallRegenCooldown' ? 's' : '%';
+        return `<span class="opt-total-stat-pill${isPriority ? ' priority' : ''}">${STAT_ICONS[k] || ''} ${v}${unit} ${STAT_LABELS[k]}</span>`;
+      }).join('');
+
+    return `
+      <div class="opt-result-card">
+        <p class="opt-result-rank">Build #${idx + 1} <span style="font-size:13px;font-weight:bold;color:rgba(242,217,187,0.6)">— Score: ${Math.round(res.score)}</span></p>
+        <div class="opt-result-slot-grid">${slotsHtml}${gemsHtml}</div>
+        ${bonusHtml}
+        <p class="opt-sub-header">TOTAL STATS</p>
+        <div class="opt-total-stats-grid">${statsHtml}</div>
+      </div>`;
   }).join('');
 }
 
+// ─── Render Sets Tab ────────────────────────────────────────────
+function renderSets() {
+  setsContainer.innerHTML = '';
+  allSets.forEach(set => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'collapse-area mb-2';
+    wrapper.innerHTML = `
+      <h2 class="collapse-header" style="font-size:15px;">
+        <span class="d-flex align-items-center gap-2 header-title">
+          <span class="opt-tier-dot ${set.tier}"></span>
+          ${set.name}
+          <span class="opt-tier-badge ${set.tier}">${set.tier}</span>
+          <span style="color:rgba(242,217,187,0.65);font-size:11px;font-weight:normal">${set.items.length} items</span>
+        </span>
+      </h2>
+      <div class="collapse show" style="background-color:rgb(180,127,92);border-radius:0 0 10px 10px;padding:10px;">
+        <p class="opt-sub-header" style="margin-top:0">SET BONUSES</p>
+        <div class="opt-bonus-pills">
+          ${set.setBonuses.map(b => {
+            const statsStr = Object.entries(b.stats).map(([k,v]) =>
+              `+${v}${k === 'additionalWaves' ? ' waves' : '%'} ${STAT_LABELS[k]}`).join(', ');
+            return `<span class="opt-bonus-pill">${b.pieces}pc: ${statsStr}</span>`;
+          }).join('')}
+        </div>
+        <p class="opt-sub-header">ITEMS</p>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;">
+          ${set.items.map(item =>
+            `<span class="opt-stat-pill">${SLOT_ICONS[item.slot] || ''} ${item.name}</span>`
+          ).join('')}
+        </div>
+      </div>`;
+    setsContainer.appendChild(wrapper);
+  });
+}
 
-// --- Actions ---
-window.app = {
-  // Inventory
-  toggle: (id) => { inv = toggleItem(inv, id); saveInventory(inv); renderInventory(); },
-  setQty: (id, qty) => { inv = setQuantity(inv, id, qty); saveInventory(inv); renderInventory(); },
-  selectAll: (setId) => { const set = allSets.find(s=>s.id===setId); if(set){ inv = selectAllInSet(inv, set.items); saveInventory(inv); renderInventory(); }},
-  clearAll: (setId) => { const set = allSets.find(s=>s.id===setId); if(set){ inv = clearAllInSet(inv, set.items); saveInventory(inv); renderInventory(); }},
-  
-  // Goals
-  applyPreset: (idx) => {
+// ─── Actions ────────────────────────────────────────────────────
+const appActions = {
+  toggle(id) {
+    inv = toggleItem(inv, id);
+    saveInventory(inv);
+    renderInventory();
+  },
+  setQty(id, qty) {
+    inv = setQuantity(inv, id, qty);
+    saveInventory(inv);
+    renderInventory();
+  },
+  selectAll(setId) {
+    const set = allSets.find(s => s.id === setId);
+    if (!set) return;
+    inv = selectAllInSet(inv, set.items);
+    saveInventory(inv);
+    renderInventory();
+  },
+  clearAll(setId) {
+    const set = allSets.find(s => s.id === setId);
+    if (!set) return;
+    inv = clearAllInSet(inv, set.items);
+    saveInventory(inv);
+    renderInventory();
+  },
+  applyPreset(idx) {
     const preset = PRESETS[idx];
-    goals = ALL_STATS.map(stat => ({ stat, weight: preset.goals[stat] || 0, enabled: !!preset.goals[stat] }));
+    goals = ALL_STATS.map(stat => ({
+      stat,
+      weight: preset.goals[stat] || 0,
+      enabled: !!preset.goals[stat]
+    }));
     renderGoals();
   },
-  toggleGoal: (stat) => {
+  toggleGoal(stat) {
     const goal = goals.find(g => g.stat === stat);
-    if(goal) { goal.enabled = !goal.enabled; renderGoals(); }
+    if (goal) { goal.enabled = !goal.enabled; renderGoals(); }
   },
-  setGoalWeight: (stat, val) => {
+  setGoalWeight(stat, val) {
     const goal = goals.find(g => g.stat === stat);
-    const weight = parseInt(val, 10);
-    if(goal) { goal.weight = weight; goal.enabled = weight > 0; renderGoals(); }
+    if (goal) { goal.weight = val; goal.enabled = val > 0; renderGoals(); }
   }
 };
 
-// --- Optimizing ---
+// ─── Optimizer Execution ────────────────────────────────────────
 function runOptimizer(inventoryOnly) {
   btnOptimizeInv.disabled = true;
   btnOptimizeAll.disabled = true;
-  
-  // Slight delay for UI to update to loading state
   setTimeout(() => {
-    isInventoryMode = inventoryOnly;
     results = optimize(goals, allSets, inventoryOnly ? inv : undefined);
     renderResults();
     switchTab('results');
-    btnOptimizeInv.disabled = false;
-    btnOptimizeAll.disabled = false;
+    const disabled = goals.filter(g => g.enabled).length === 0;
+    btnOptimizeInv.disabled = disabled;
+    btnOptimizeAll.disabled = disabled;
   }, 50);
 }
 
 btnOptimizeInv.addEventListener('click', () => runOptimizer(true));
 btnOptimizeAll.addEventListener('click', () => runOptimizer(false));
 
-// --- Init ---
+// ─── Init ───────────────────────────────────────────────────────
 renderInventory();
 renderGoals();
 renderResults();
+renderSets();
